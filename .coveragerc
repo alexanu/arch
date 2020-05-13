@@ -2,7 +2,6 @@
 [run]
 source = arch
 branch = True
-include = */arch/*
 omit =
     */_version.py
     */compat/*
@@ -24,6 +23,8 @@ exclude_lines =
     pytest.xfail
     # Ignore ImportError protection
     except ImportError
+    # Ignore type checking code
+    if TYPE_CHECKING
     # Cython function declarations
     cdef
 
@@ -34,4 +35,3 @@ omit =
     *recursions.py
     *samplers.py
 ignore_errors = True
-

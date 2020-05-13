@@ -1,7 +1,10 @@
+from pandas import DataFrame
+
 from arch.data.utility import load_file
 
 
-def load():
+def load() -> DataFrame:
+
     """
     Load the Core CPI data used in the examples
 
@@ -14,4 +17,4 @@ def load():
     -----
     From the FRED database
     """
-    return load_file(__file__, 'core-cpi.csv.gz')
+    return load_file(__file__, "core-cpi.csv.gz")

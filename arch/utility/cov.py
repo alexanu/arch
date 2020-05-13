@@ -1,7 +1,11 @@
-from __future__ import absolute_import, division
+from numpy import asarray
+
+from arch.typing import NDArray
 
 
-def cov_nw(y, lags=0, demean=True, axis=0, ddof=0):
+def cov_nw(
+    y: NDArray, lags: int = 0, demean: bool = True, axis: int = 0, ddof: int = 0
+) -> NDArray:
     """
     Computes Newey-West covariance for 1-d and 2-d arrays
 
@@ -23,32 +27,32 @@ def cov_nw(y, lags=0, demean=True, axis=0, ddof=0):
 
     Returns
     -------
-    cov : ndarray
+    ndarray
         The estimated covariance
-
     """
     z = y
     is_1d = False
     if axis > z.ndim:
-        raise ValueError('axis must be less than the dimension of y')
+        raise ValueError("axis must be less than the dimension of y")
     if z.ndim == 1:
         is_1d = True
-        z = z[:, None]
+        z = asarray(z)[:, None]
     if axis == 1:
         z = z.T
     n = z.shape[0]
     if ddof > n:
-        raise ValueError("ddof must be strictly smaller than the number of "
-                         "observations")
+        raise ValueError(
+            "ddof must be strictly smaller than the number of observations"
+        )
     if lags > n:
-        error = 'lags must be weakly smaller than the number of observations'
+        error = "lags must be weakly smaller than the number of observations"
         raise ValueError(error)
 
     if demean:
         z = z - z.mean(0)
     cov = z.T.dot(z)
     for j in range(1, lags + 1):
-        w = (1 - j / (lags + 1))
+        w = 1 - j / (lags + 1)
         gamma = z[j:].T.dot(z[:-j])
         cov += w * (gamma + gamma.T)
     cov = cov / (n - ddof)

@@ -2,10 +2,63 @@
 Version 4
 =========
 
-Changes Since 4.9
-=================
+Release 4.14
+============
+- Added Kernel-based long-run variance estimation in ``arch.covariance.kernel``.
+  Examples include the :class:`~arch.covariance.kernel.Bartlett` and the
+  :class:`~arch.covariance.kernel.Parzen` kernels.  All estimators suppose automatic
+  bandwidth selection.
+- Improved exceptions in :class:`~arch.unitroot.ADF`,  :class:`~arch.unitroot.KPSS`,
+  :class:`~arch.unitroot.PhillipsPerron`, :class:`~arch.unitroot.VarianceRatio`,
+  and :class:`~arch.unitroot.ZivotAndrews` when test specification is infeasible to
+  the time series being too short or the required regression model having reduced
+  rank (:issue:`364`).
+- Fixed a bug when using "bca" confidence intervals with ``extra_kwargs`` (:issue:`366`).
+- Added Phillips-Ouliaris (:func:`~arch.unitroot.cointegration.phillips_ouliaris`)
+  cointegration tests (:issue:`360`).
+- Added three methods to estimate cointegrating vectors:
+  :class:`~arch.unitroot.cointegration.CanonicalCointegratingReg`,
+  :class:`~arch.unitroot.cointegration.DynamicOLS`, and
+  :class:`~arch.unitroot.cointegration.FullyModifiedOLS`
+  (:issue:`356`, :issue:`359`).
+- Added the Engle-Granger (:func:`~arch.unitroot.cointegration.engle_granger`)
+  cointegration test (:issue:`354`).
+- Issue warnings when unit root tests are mutated. Will raise after 5.0
+  is released.
+- Fixed a bug in :class:`arch.univariate.SkewStudent` which did not use the
+  user-provided `RandomState` when one was provided. This prevented
+  reproducing simulated values (:issue:`353`).
+
+Release 4.13
+============
+- Restored the vendored copy of ``property_cached`` for conda package building.
+
+Release 4.12
+============
+- Added typing support to all classes, functions and methods (:issue:`338`,
+  :issue:`341`, :issue:`342`, :issue:`343`, :issue:`345`, :issue:`346`).
+- Fixed an issue that caused tests to fail on SciPy 1.4+ (:issue:`339`).
+- Dropped support for Python 3.5 inline with NEP 29 (:issue:`334`).
+- Added methods to compute moment and lower partial moments for standardized
+  residuals. See, for example, :func:`~arch.univariate.SkewStudent.moment` and
+  :func:`~arch.univariate.SkewStudent.partial_moment` (:issue:`329`).
+- Fixed a bug that produced an OverflowError when a time series has no
+  variance (:issue:`331`).
+
+Release 4.11
+============
+- Added :func:`~arch.univariate.base.ARCHModelResult.std_resid` (:issue:`326`).
+- Error if inputs are not ndarrays, DataFrames or Series (:issue:`315`).
+- Added a check that the covariance is non-zero when using "studentized" confidence intervals.
+  If the function bootstrapped produces statistics with 0 variance, it is not possible to
+  studentized (:issue:`322`).
+
+Release 4.10
+============
 - Fixed a bug in arch_lm_test that assumed that the model data is contained in
   a pandas Series. (:issue:`313`).
+- Fixed a bug that can affect use in certain environments that reload modules
+  (:issue:`317`).
 
 Release 4.9
 ===========

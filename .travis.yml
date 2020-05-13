@@ -1,4 +1,4 @@
-dist: xenial
+dist: bionic
 sudo: required
 
 language: python
@@ -8,11 +8,16 @@ services:
 
 env:
   global:
-    - COVERAGE=false
+    - COVERAGE=true
     - USE_NUMBA=true
+    - USE_PIP=false
     - STATSMODELS_MASTER=false
     - DOCBUILD=false
     - PYTEST_PATTERN="(not slow)"
+    - PYTHONHASHSEED=0
+    - MKL_NUM_THREADS=1
+    - OMP_NUM_THREADS=1
+    - VML_NUM_THREADS=1
     - secure: "dCvSzHmiqumrvQDQJXaPukd2TEituoUJTRJeBrLfEg0f1ZtAkoEcCudXuissODo1s/e+zClEhn3GRMGZc9QxKI0w8VHWeyMDHjFhyl4wubi35biUpXijYgs6IMqqdIo5oKcnMR6jG8uzuzPGDCpZh49+DgGU5E7rGHBgJ5Tdo8s="
 
 
@@ -22,82 +27,84 @@ matrix:
   - python: 3.7
     env:
       - PYTHON=3.7
-      - MATPLOTLIB=3
-      - COVERAGE=true
       - ARCH_CYTHON_COVERAGE=true
-  - python: 3.6
+  - os: osx
+    osx_image:  xcode11.3
+    language: generic
     env:
-      - PYTHON=3.6
-      - USE_NUMBA=false
-      - MATPLOTLIB=3
-      - COVERAGE=true
-      - PYTEST_PATTERN="(slow or not slow)"
-  - python: 3.5
+      - USE_PIP=true
+  - python: 3.8
     env:
-      - PYTHON=3.5
-      - COVERAGE=true
-      - MATPLOTLIB=2
-      - NUMPY=1.14
-      - SCIPY=1
-  - python: 3.6
+      - PYTHON=3.8
+      - STATSMODELS_MASTER=true
+      - USE_PIP=true
+      - COVERAGE=false
+  - python: 3.7
     env:
-      - PYTHON=3.6
-      - NUMBA=0.38
-      - NUMPY=1.15
+      - PYTHON=3.7
+      - NUMPY=1.16
       - SCIPY=1.2
       - MATPLOTLIB=2
-      - PANDAS=0.22
-      - STATSMODELS_MASTER=true
-  - python: 3.6
+      - PANDAS=0.23
+  - python: 3.7
+    env:
+      - USE_PIP=true
+      - USE_NUMBA=true
+      - MATPLOTLIB=3
+      - PYTEST_PATTERN="(slow or not slow)"
+  - python: 3.7
     env:
       - PYTHON=3.7
       - DOCBUILD=true
       - MATPLOTLIB=3
-      - NUMPY=1.16
+      - NUMPY=1.17
+  - python: 3.6
+    env:
+      - PYTHON=3.6
+      - MATPLOTLIB=2
+      - NUMPY=1.15
+      - SCIPY=1
+      - PYTEST_PATTERN="(slow or not slow)"
+  - python: 3.7
+    env:
+      - PYTHON=3.7
+      - USE_NUMBA=false
+      - MATPLOTLIB=3
+      - PYTEST_PATTERN="(slow or not slow)"
+  - python: 3.6
+    env:
+      - PYTHON=3.6
+      - NUMBA=0.35
+  - python: 3.8
+    env:
+      - USE_PIP=true
+      - NUMPY=1.18
+      - USE_NUMBA=false
+      - PYTEST_PATTERN="(slow or not slow)"
 
 before_install:
+  - source ci/travis-osx-setup.sh
+  - python --version
   - git fetch --tags
-  - sudo apt-get -y install pandoc
-  - wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda3.sh -nv
-  - chmod +x miniconda3.sh
-  - ./miniconda3.sh -b
-  - export PATH=/home/travis/miniconda3/bin:$PATH
-  - conda config --set always_yes true
-  - conda update --all --quiet
   # Avoid noise from matplotlib
   - mkdir -p $HOME/.config/matplotlib
   # Build package list to avoid empty package=versions
-  - PKGS="python=${PYTHON}"
-  - PKGS="${PKGS} numpy"; if [[ -n ${NUMPY} ]]; then PKGS="${PKGS}=${NUMPY}"; fi;
-  - PKGS="${PKGS} scipy"; if [[ -n ${SCIPY} ]]; then PKGS="${PKGS}=${SCIPY}"; fi;
-  - PKGS="${PKGS} patsy"; if [[ -n ${PATSY} ]]; then PKGS="${PKGS}=${PATSY}"; fi;
-  - PKGS="${PKGS} pandas"; if [[ -n ${PANDAS} ]]; then PKGS="${PKGS}=${PANDAS}"; fi;
-  - PKGS="${PKGS} Cython"; if [[ -n ${CYTHON} ]]; then PKGS="${PKGS}=${CYTHON}"; fi;
-  - if [[  -n ${MATPLOTLIB} ]]; then PKGS="${PKGS} matplotlib=${MATPLOTLIB} seaborn"; fi;
-  - PKGS="${PKGS} statsmodels"; if [[ -n ${STATSMODELS} ]]; then PKGS="${PKGS}=${STATSMODELS}"; fi;
-  - if [[ ${USE_NUMBA} = true ]]; then PKGS="${PKGS} numba"; if [[ -n ${NUMBA} ]]; then PKGS="${PKGS}=${NUMBA}";  fi; fi;
-  - echo conda create --yes --quiet -n arch-test ${PKGS}
-  - conda create --yes --quiet -n arch-test ${PKGS}
-  - source activate arch-test
-  - pip install property_cached flake8 pytest pytest-xdist pytest-cov coverage coveralls codecov nbformat nbconvert!=5.4 jupyter_client ipython jupyter -q
-  - if [[ "$STATSMODELS_MASTER" == true ]]; then sh ./ci/statsmodels-master.sh; fi;
   - |
-    if [[ "$DOCBUILD" == true ]]; then
-      conda install sphinx ipython numpydoc jupyter seaborn
-      pip install doctr nbsphinx sphinx_material -q
-      sudo apt-get install -y enchant
-      pip install sphinxcontrib-spelling
+    if [[ "$USE_PIP" == true ]]; then
+      source ci/use-pip.sh
+    else
+      source ci/use-conda.sh
     fi
+  - source ci/install-common.sh
+  - if [[ "$STATSMODELS_MASTER" == true ]]; then sh ./ci/install-statsmodels-master.sh; fi;
+  - pip list
   - export SRCDIR="$PWD"
-  - conda list
-  - export PYTHONHASHSEED=0
-  - export MKL_NUM_THREADS=1
-  - if [[ "$COVERAGE" == true ]]; then export COVERAGE_OPTS="--cov-config .coveragerc --cov=arch"; fi
+  - export COVERAGE_OPTS="--cov-config .coveragerc --cov=arch --cov-report xml:coverage.xml --cov-report term"
 
 install:
   - |
     if [[ "$COVERAGE" == true ]]; then
-      python setup.py develop
+      pip install -e . --no-build-isolation
     else
       pip install .
     fi
@@ -107,26 +114,40 @@ script:
   - python ci/performance.py
   - |
     if [[ "$COVERAGE" == true ]]; then
-      echo pytest -r a -m "$PYTEST_PATTERN" ${COVERAGE_OPTS} --durations=25 arch
+      echo pytest -r a -m "$PYTEST_PATTERN" ${COVERAGE_OPTS} --durations=25 arch/tests/univariate/test_rescale.py
       pytest -r a -m "$PYTEST_PATTERN" ${COVERAGE_OPTS} --durations=25 arch
     else
-      mkdir test
-      cd test
-      python -c "import arch; arch.test(['-r a','-m (not slow)','--durations=25'])"
+      mkdir arch_test
+      cd arch_test
+      python -c "import arch; arch.test(['-r a','-m (not slow)'])"
       cd ..
     fi
+  - set -e
   - |
-    if [[ "$DOCBUILD" = true ]]; then
-      python setup.py install
+    if [[ ${DOCBUILD} = true ]]; then
+      sudo apt-get install -y enchant pandoc
+      pip install sphinxcontrib-spelling sphinx-material
+      pip list
       cd doc
-      make spelling
       make html
+      make html
+      make spelling
       cd ..
-      if [[ "$TRAVIS_BRANCH" = "master" || ! -z "$TRAVIS_TAG" ]]; then
-        doctr deploy doc --build-tags
+      doctr deploy devel --build-tags
+      if [[ -z ${TRAVIS_TAG} ]]; then
+        echo "Not a tagged build."
+      else
+        doctr deploy . --build-tags
       fi
     fi
   - flake8 arch
 
 after_success:
-  - if [[ "$COVERAGE" = true ]]; then codecov; coveralls --rcfile="$SRCDIR"/.coveragerc; fi
+  # Test install coverage is in ./test
+  - |
+    if [[ "$COVERAGE" == true ]]; then
+      codecov
+      coveralls --rcfile="$SRCDIR"/.coveragerc
+      wget -qO - https://coverage.codacy.com/get.sh | bash -s report -l Python -r coverage.xml
+    fi
+

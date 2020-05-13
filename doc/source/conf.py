@@ -11,6 +11,7 @@ from distutils.version import LooseVersion
 import glob
 import os
 import shutil
+from typing import Dict, List
 
 import arch
 
@@ -39,12 +40,17 @@ copyright = "2019, Kevin Sheppard"
 author = "Kevin Sheppard"
 
 # The short X.Y version
-version = arch.__version__
-ver = LooseVersion(arch.__version__).version
-if "+" in ver:
-    loc = ver.index("+")
-    version = ".".join(map(str, ver[:loc]))
-    version += " (+{0})".format(ver[loc + 1])
+loose_version = LooseVersion(arch.__version__)
+short_version = version = arch.__version__
+if "+" in loose_version.version:
+    version = version.replace(".dirty", "")
+    version = version.split("+")
+    commits, tag = version[1].split(".")
+    version = version[0]
+    short_tag = " (+{0})".format(commits)
+    tag = " (+" + commits + ", " + tag + ")"
+    short_version = version + short_tag
+    version = version + tag
 # The full version, including alpha/beta/rc tags.
 release = arch.__version__
 
@@ -68,10 +74,12 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.coverage",
     "sphinx.ext.ifconfig",
+    # "numpydoc",
     "sphinx.ext.napoleon",
+    "sphinx_autodoc_typehints",
     "IPython.sphinxext.ipython_console_highlighting",
     "IPython.sphinxext.ipython_directive",
-    "nbsphinx"
+    "nbsphinx",
 ]
 
 try:
@@ -108,7 +116,7 @@ language = None
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
+exclude_patterns: List[str] = []
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "colorful"  # "sphinx"
@@ -133,24 +141,30 @@ if not on_rtd:  # only import and set the theme if we"re building docs locally
 
     # sphinx_material theme options (see theme.conf for more information)
     html_theme_options = {
-        'base_url': 'http://bashtage.github.io/arch/',
-        'repo_url': 'https://github.com/bashtage/arch/',
-        'repo_name': 'ARCH',
+        "base_url": "http://bashtage.github.io/arch/",
+        "repo_url": "https://github.com/bashtage/arch/",
+        "repo_name": "ARCH",
         # Set the name of the project to appear in the sidebar
-        "nav_title": project + u" " + version,
-        'globaltoc_depth': 2,
-        'globaltoc_collapse': True,
-        'globaltoc_includehidden': True,
-        'theme_color': '#2196f3',
-        'color_primary': 'blue ',
-        'color_accent': 'indigo',
-        'html_minify': True,
-        'css_minify': True,
-        'master_doc': False
+        "nav_title": project + " " + short_version,
+        "globaltoc_depth": 2,
+        "globaltoc_collapse": True,
+        "globaltoc_includehidden": True,
+        "theme_color": "#2196f3",
+        "color_primary": "blue ",
+        "color_accent": "indigo",
+        "html_minify": True,
+        "css_minify": True,
+        "master_doc": False,
+        "version_dropdown": True,
+        "version_info": {
+            "Release": "https://bashtage.github.io/arch/",
+            "Development": "https://bashtage.github.io/arch/devel/",
+            "RTD (Release)": "https://arch.readthedocs.io/",
+        },
     }
 
-html_favicon = 'images/favicon.ico'
-html_logo = 'images/bw-logo.svg'
+html_favicon = "images/favicon.ico"
+html_logo = "images/bw-logo.svg"
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
@@ -174,8 +188,7 @@ if not on_rtd:
 # html_sidebars = {}
 if not on_rtd:
     html_sidebars = {
-        "**": ["logo-text.html", "globaltoc.html", "searchbox.html",
-               "localtoc.html"]
+        "**": ["logo-text.html", "globaltoc.html", "searchbox.html", "localtoc.html"]
     }
 
 # If false, no module index is generated.
@@ -188,19 +201,16 @@ htmlhelp_basename = "arch"
 
 # -- Options for LaTeX output ------------------------------------------------
 
-latex_elements = {
+latex_elements: Dict[str, str] = {
     # The paper size ("letterpaper" or "a4paper").
     #
     # "papersize": "letterpaper",
-
     # The font size ("10pt", "11pt" or "12pt").
     #
     # "pointsize": "10pt",
-
     # Additional stuff for the LaTeX preamble.
     #
     # "preamble": '',
-
     # Latex figure (float) alignment
     #
     # "figure_align": "htbp",
@@ -210,18 +220,14 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "arch.tex", "arch Documentation",
-     "Kevin Sheppard", "manual"),
+    (master_doc, "arch.tex", "arch Documentation", "Kevin Sheppard", "manual"),
 ]
 
 # -- Options for manual page output ------------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    (master_doc, "arch", "arch Documentation",
-     [author], 1)
-]
+man_pages = [(master_doc, "arch", "arch Documentation", [author], 1)]
 
 # -- Options for Texinfo output ----------------------------------------------
 
@@ -229,9 +235,15 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, "arch", "arch Documentation",
-     author, "arch", "ARCH models in Python",
-     "Finance/Econometrics"),
+    (
+        master_doc,
+        "arch",
+        "arch Documentation",
+        author,
+        "arch",
+        "ARCH models in Python",
+        "Finance/Econometrics",
+    ),
 ]
 
 # -- Options for Epub output -------------------------------------------------
@@ -261,17 +273,29 @@ intersphinx_mapping = {
     "matplotlib": ("https://matplotlib.org", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
     "python": ("https://docs.python.org/3/", None),
-    "numpy": ("https://docs.scipy.org/doc/numpy", None),
-    "np": ("https://docs.scipy.org/doc/numpy", None),
+    "numpy": ("https://numpy.org/devdocs/", None),
+    "np": ("https://numpy.org/devdocs/", None),
     "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
     "pd": ("https://pandas.pydata.org/pandas-docs/stable/", None),
 }
 
 extlinks = {"issue": ("https://github.com/bashtage/arch/issues/%s", "GH")}
 
-napoleon_use_admonition_for_examples = True
+napoleon_use_admonition_for_examples = False
 napoleon_use_admonition_for_notes = False
-napoleon_use_admonition_for_references = True
+napoleon_use_admonition_for_references = False
+
+numpydoc_use_autodoc_signature = True
+numpydoc_xref_param_type = True
+numpydoc_class_members_toctree = False
+
+numpydoc_xref_aliases = {
+    "Figure": "matplotlib.figure.Figure",
+    "Axes": "matplotlib.axes.Axes",
+    "AxesSubplot": "matplotlib.axes.Axes",
+    "DataFrame": "pandas.DataFrame",
+    "Series": "pandas.Series",
+}
 
 autosummary_generate = True
-autoclass_content = 'class'
+autoclass_content = "class"

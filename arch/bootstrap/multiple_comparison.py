@@ -1,27 +1,31 @@
-from __future__ import absolute_import, division
-
-from collections import OrderedDict
+from typing import Dict, Hashable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
-from arch.bootstrap.base import (CircularBlockBootstrap, MovingBlockBootstrap,
-                                 StationaryBootstrap)
+from arch.bootstrap.base import (
+    CircularBlockBootstrap,
+    MovingBlockBootstrap,
+    StationaryBootstrap,
+)
+from arch.typing import ArrayLike, NDArray
 from arch.utility.array import DocStringInheritor, ensure2d
 
-__all__ = ['StepM', 'SPA', 'RealityCheck']
+__all__ = ["StepM", "SPA", "RealityCheck", "MCS"]
 
 
-def _info_to_str(model, info, is_repr=False, is_html=False):
+def _info_to_str(
+    model: str, info: Dict[str, str], is_repr: bool = False, is_html: bool = False
+) -> str:
     if is_html:
-        model = '<strong>' + model + '</strong>'
-    _str = model + '('
+        model = "<strong>" + model + "</strong>"
+    _str = model + "("
     for k, v in info.items():
-        if k.lower() != 'id' or is_repr:
+        if k.lower() != "id" or is_repr:
             if is_html:
-                k = '<strong>' + k + '</strong>'
-            _str += k + ': ' + v + ', '
-    return _str[:-2] + ')'
+                k = "<strong>" + k + "</strong>"
+            _str += k + ": " + v + ", "
+    return _str[:-2] + ")"
 
 
 class MultipleComparison(object):
@@ -29,33 +33,33 @@ class MultipleComparison(object):
     Abstract class for inheritance
     """
 
-    def __init__(self):
-        self._model = ''
-        self._info = OrderedDict()
-        self.bootstrap = None
+    def __init__(self) -> None:
+        self._model = ""
+        self._info: Dict[str, str] = {}
+        self.bootstrap = CircularBlockBootstrap(10, np.ones(100))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return _info_to_str(self._model, self._info, False)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return _info_to_str(self._model, self._info, True)
 
-    def _repr_html_(self):
+    def _repr_html_(self) -> str:
         return _info_to_str(self._model, self._info, True, True)
 
-    def reset(self):
+    def reset(self) -> None:
         """
         Reset the bootstrap to it's initial state.
         """
         self.bootstrap.reset()
 
-    def seed(self, value):
+    def seed(self, value: Union[int, List[int], NDArray]) -> None:
         """
-        Seeds the bootstrap's random number generator
+        Seed the bootstrap's random number generator
 
         Parameters
         ----------
-        value : int
+        value : {int, List[int], ndarray[int]}
             Integer to use as the seed
         """
         self.bootstrap.seed(value)
@@ -63,7 +67,7 @@ class MultipleComparison(object):
 
 class MCS(MultipleComparison):
     """
-    Implementation of the Model Confidence Set (MCS)
+    Model Confidence Set (MCS) of Hansen, Lunde and Nason.
 
     Parameters
     ----------
@@ -87,24 +91,30 @@ class MCS(MultipleComparison):
         'circular' or 'cbb': Circular block bootstrap
         'moving block' or 'mbb': Moving block bootstrap
 
-    Methods
-    -------
-    compute
-        Compute the set ofmodels in the confidence set.
+    Notes
+    -----
+    See [1]_ for details.
 
     References
     ----------
-    Hansen, P. R., Lunde, A., & Nason, J. M. (2011). The model confidence set.
-    Econometrica, 79(2), 453-497.
+    .. [1] Hansen, P. R., Lunde, A., & Nason, J. M. (2011). The model confidence set.
+       Econometrica, 79(2), 453-497.
     """
 
-    def __init__(self, losses, size, reps=1000, block_size=None, method='R',
-                 bootstrap='stationary'):
-        super(MCS, self).__init__()
-        self.losses = ensure2d(losses, 'losses')
+    def __init__(
+        self,
+        losses: ArrayLike,
+        size: float,
+        reps: int = 1000,
+        block_size: Optional[int] = None,
+        method: str = "R",
+        bootstrap: str = "stationary",
+    ) -> None:
+        super().__init__()
+        self.losses = ensure2d(losses, "losses")
         self._losses_arr = np.asarray(self.losses)
         if self._losses_arr.shape[1] < 2:
-            raise ValueError('losses must have at least two columns')
+            raise ValueError("losses must have at least two columns")
         self.size = size
         self.reps = reps
         if block_size is None:
@@ -117,56 +127,60 @@ class MCS(MultipleComparison):
         # Bootstrap indices since the same bootstrap should be used in the
         # repeated steps
         indices = np.arange(self.t)
-        bootstrap = bootstrap.lower().replace(' ', '_')
-        if bootstrap in ('stationary', 'sb'):
-            bootstrap = StationaryBootstrap(self.block_size, indices)
-        elif bootstrap in ('circular', 'cbb'):
-            bootstrap = CircularBlockBootstrap(self.block_size, indices)
-        elif bootstrap in ('moving_block', 'mbb'):
-            bootstrap = MovingBlockBootstrap(self.block_size, indices)
+        bootstrap = bootstrap.lower().replace(" ", "_")
+        if bootstrap in ("circular", "cbb"):
+            bootstrap_inst = CircularBlockBootstrap(self.block_size, indices)
+        elif bootstrap in ("stationary", "sb"):
+            bootstrap_inst = StationaryBootstrap(self.block_size, indices)
+        elif bootstrap in ("moving_block", "mbb"):
+            bootstrap_inst = MovingBlockBootstrap(self.block_size, indices)
         else:
-            raise ValueError('Unknown bootstrap:' + bootstrap)
-        self.bootstrap = bootstrap
-        self._bootstrap_indices = []  # For testing
-        self._model = 'MCS'
-        self._info = OrderedDict([('size', '{0:0.2f}'.format(self.size)),
-                                  ('bootstrap', str(bootstrap)),
-                                  ('ID', hex(id(self)))])
+            raise ValueError("Unknown bootstrap:" + bootstrap)
+        self.bootstrap = bootstrap_inst
+        self._bootstrap_indices: List[NDArray] = []  # For testing
+        self._model = "MCS"
+        self._info = dict(
+            [
+                ("size", "{0:0.2f}".format(self.size)),
+                ("bootstrap", str(bootstrap_inst)),
+                ("ID", hex(id(self))),
+            ]
+        )
         self._results_computed = False
 
-    def _has_been_computed(self):
+    def _has_been_computed(self) -> None:
         if not self._results_computed:
-            raise RuntimeError('Must call compute before accessing results')
+            raise RuntimeError("Must call compute before accessing results")
 
-    def _format_pvalues(self, eliminated):
-        columns = ['Model index', 'Pvalue']
+    def _format_pvalues(self, eliminated: Sequence[Tuple[int, float]]) -> pd.DataFrame:
+        columns = ["Model index", "Pvalue"]
         mcs = pd.DataFrame(eliminated, columns=columns)
         max_pval = mcs.iloc[0, 1]
         for i in range(1, mcs.shape[0]):
             max_pval = np.max([max_pval, mcs.iloc[i, 1]])
             mcs.iloc[i, 1] = max_pval
-        model_index = mcs.pop('Model index')
+        model_index = mcs.pop("Model index")
         if isinstance(self.losses, pd.DataFrame):
             # Workaround for old pandas/numpy combination
             # Preferred expression :
             # model_index = pd.Series(self.losses.columns[model_index])
             model_index = self.losses.iloc[:, model_index.values].columns
             model_index = pd.Series(model_index)
-            model_index.name = 'Model name'
+            model_index.name = "Model name"
         mcs.index = model_index
         return mcs
 
-    def compute(self):
+    def compute(self) -> None:
         """
-        Computes the model confidence set
+        Compute the set of models in the confidence set.
         """
-        if self.method.lower() == 'r':
+        if self.method.lower() == "r":
             self._compute_r()
         else:
             self._compute_max()
         self._results_computed = True
 
-    def _compute_r(self):
+    def _compute_r(self) -> None:
         """
         Computes the model confidence set using the R method
         """
@@ -210,15 +224,15 @@ class MCS(MultipleComparison):
             # i is worse than j
             # Elimination is for
             i = loc.squeeze()[0]
-            eliminated.append([indices.flat[i], pval])
+            eliminated.append((indices.flat[i], pval))
             included[indices.flat[i]] = False
         # Add pval of 1 for model remaining
         indices = np.argwhere(included).flatten()
         for ind in indices:
-            eliminated.append([ind, 1.0])
+            eliminated.append((ind, 1.0))
         self._pvalues = self._format_pvalues(eliminated)
 
-    def _compute_max(self):
+    def _compute_max(self) -> None:
         """
         Computes the model confidence set using the R method
         """
@@ -254,17 +268,17 @@ class MCS(MultipleComparison):
             std_loss_diffs = loss_diffs / std_devs
             test_stat = np.max(std_loss_diffs)
             pval = (test_stat < simulated_test_stat).mean()
-            i = np.argwhere(std_loss_diffs == test_stat)
-            eliminated.append([indices.flat[i.squeeze()], pval])
-            included[indices.flat[i]] = False
+            locs = np.argwhere(std_loss_diffs == test_stat)
+            eliminated.append((indices.flat[locs.squeeze()], pval))
+            included[indices.flat[locs]] = False
 
         indices = np.argwhere(included).flatten()
         for ind in indices:
-            eliminated.append([ind, 1.0])
+            eliminated.append((ind, 1.0))
         self._pvalues = self._format_pvalues(eliminated)
 
     @property
-    def included(self):
+    def included(self) -> List[Hashable]:
         """
         List of model indices that are included in the MCS
 
@@ -274,13 +288,13 @@ class MCS(MultipleComparison):
             List of column indices or names of the included models
         """
         self._has_been_computed()
-        included = (self._pvalues.Pvalue > self.size)
+        included = self._pvalues.Pvalue > self.size
         included = list(self._pvalues.index[included])
         included.sort()
         return included
 
     @property
-    def excluded(self):
+    def excluded(self) -> List[Hashable]:
         """
         List of model indices that are excluded from the MCS
 
@@ -290,13 +304,13 @@ class MCS(MultipleComparison):
             List of column indices or names of the excluded models
         """
         self._has_been_computed()
-        excluded = (self._pvalues.Pvalue <= self.size)
+        excluded = self._pvalues.Pvalue <= self.size
         excluded = list(self._pvalues.index[excluded])
         excluded.sort()
         return excluded
 
     @property
-    def pvalues(self):
+    def pvalues(self) -> pd.DataFrame:
         """
         Model p-values for inclusion in the MCS
 
@@ -312,7 +326,7 @@ class MCS(MultipleComparison):
 
 class StepM(MultipleComparison):
     """
-    Implementation of Romano and Wolf's StepM multiple comparison procedure
+    StepM multiple comparison procedure of Romano and Wolf.
 
     Parameters
     ----------
@@ -341,11 +355,6 @@ class StepM(MultipleComparison):
         studentization.  Default is False.  Note that this can be slow since
         the procedure requires k extra bootstraps.
 
-    Methods
-    -------
-    compute
-        Compute the set of superior models.
-
     References
     ----------
     Romano, J. P., & Wolf, M. (2005). "Stepwise multiple testing as formalized
@@ -357,40 +366,65 @@ class StepM(MultipleComparison):
     multiple comparison procedure.  Uses SPA and the consistent selection
     procedure.
 
+    See [1]_ for detail.
+
     See Also
     --------
     SPA
+
+    References
+    ----------
+    .. [1] Romano, J. P., & Wolf, M. (2005). Stepwise multiple testing as
+       formalized data snooping. Econometrica, 73(4), 1237-1282.
     """
 
-    def __init__(self, benchmark, models, size=0.05, block_size=None,
-                 reps=1000, bootstrap='stationary', studentize=True,
-                 nested=False):
+    def __init__(
+        self,
+        benchmark: ArrayLike,
+        models: ArrayLike,
+        size: float = 0.05,
+        block_size: Optional[int] = None,
+        reps: int = 1000,
+        bootstrap: str = "stationary",
+        studentize: bool = True,
+        nested: bool = False,
+    ) -> None:
         super(StepM, self).__init__()
-        self.benchmark = ensure2d(benchmark, 'benchmark')
-        self.models = ensure2d(models, 'models')
-        self.spa = SPA(benchmark, models, block_size=block_size, reps=reps,
-                       bootstrap=bootstrap,
-                       studentize=studentize, nested=nested)
+        self.benchmark = ensure2d(benchmark, "benchmark")
+        self.models = ensure2d(models, "models")
+        self.spa = SPA(
+            benchmark,
+            models,
+            block_size=block_size,
+            reps=reps,
+            bootstrap=bootstrap,
+            studentize=studentize,
+            nested=nested,
+        )
         self.block_size = self.spa.block_size
         self.t, self.k = self.models.shape
         self.reps = reps
         self.size = size
-        self._superior_models = None
+        self._superior_models: Optional[List[Hashable]] = None
         self.bootstrap = self.spa.bootstrap
 
-        self._model = 'StepM'
+        self._model = "StepM"
         if self.spa.studentize:
-            method = 'bootstrap' if self.spa.nested else 'asymptotic'
+            method = "bootstrap" if self.spa.nested else "asymptotic"
         else:
-            method = 'none'
-        self._info = OrderedDict([('FWER (size)', '{:0.2f}'.format(self.size)),
-                                  ('studentization', method),
-                                  ('bootstrap', str(self.spa.bootstrap)),
-                                  ('ID', hex(id(self)))])
+            method = "none"
+        self._info = dict(
+            [
+                ("FWER (size)", "{:0.2f}".format(self.size)),
+                ("studentization", method),
+                ("bootstrap", str(self.spa.bootstrap)),
+                ("ID", hex(id(self))),
+            ]
+        )
 
-    def compute(self):
+    def compute(self) -> None:
         """
-        Computes the set of superior models
+        Compute the set of superior models.
         """
         # 1. Run SPA
         self.spa.compute()
@@ -418,26 +452,27 @@ class StepM(MultipleComparison):
         self._superior_models = all_better_models
 
     @property
-    def superior_models(self):
+    def superior_models(self) -> List[Hashable]:
         """
         List of the indices or column names of the superior models
 
         Returns
         -------
-        superior_models : list
+        list
             List of superior models.  Contains column indices if models is an
             array or contains column names if models is a DataFrame.
         """
         if self._superior_models is None:
-            msg = 'compute must be called before accessing superior_models'
+            msg = "compute must be called before accessing superior_models"
             raise RuntimeError(msg)
         return self._superior_models
 
 
 class SPA(MultipleComparison, metaclass=DocStringInheritor):
     """
-    Implementation of the Test of Superior Predictive Ability (SPA),
-    which is also known as the Reality Check or Bootstrap Data Snooper.
+    Test of Superior Predictive Ability (SPA) of White and Hansen.
+
+    The SPA is also known as the Reality Check or Bootstrap Data Snooper.
 
     Parameters
     ----------
@@ -463,19 +498,6 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
         studentization.  Default is False.  Note that this can be slow since
         the procedure requires k extra bootstraps.
 
-    Methods
-    -------
-    compute
-        Compute the bootstrap pvalue.  Must be called before accessing the
-        pvalue
-    seed
-        Pass seed to bootstrap implementation
-    reset
-        Reset the bootstrap to its initial state
-    better_models
-        Produce a list of column indices or names (if models is a DataFrame)
-        that are rejected given a test size
-
     References
     ----------
     White, H. (2000). "A reality check for data snooping." Econometrica 68,
@@ -491,17 +513,33 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
         - Consistent : Only recenter if closer than a log(log(t)) bound
         - Lower : Never recenter a model if worse than benchmark
 
+    See [1]_ and [2]_ for details.
+
     See Also
     --------
     StepM
 
+    References
+    ----------
+    .. [1] Hansen, P. R. (2005). A test for superior predictive ability.
+       Journal of Business & Economic Statistics, 23(4), 365-380.
+    .. [2] White, H. (2000). A reality check for data snooping. Econometrica,
+       68(5), 1097-1126.
     """
 
-    def __init__(self, benchmark, models, block_size=None, reps=1000,
-                 bootstrap='stationary', studentize=True, nested=False):
-        super(SPA, self).__init__()
-        self.benchmark = ensure2d(benchmark, 'benchmark')
-        self.models = ensure2d(models, 'models')
+    def __init__(
+        self,
+        benchmark: ArrayLike,
+        models: ArrayLike,
+        block_size: Optional[int] = None,
+        reps: int = 1000,
+        bootstrap: str = "stationary",
+        studentize: bool = True,
+        nested: bool = False,
+    ) -> None:
+        super().__init__()
+        self.benchmark = ensure2d(benchmark, "benchmark")
+        self.models = ensure2d(models, "models")
         self.reps = reps
         if block_size is None:
             self.block_size = int(np.sqrt(benchmark.shape[0]))
@@ -512,37 +550,40 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
         self._loss_diff = np.asarray(self.benchmark) - np.asarray(self.models)
         self._loss_diff_var = None
         self.t, self.k = self._loss_diff.shape
-        bootstrap = bootstrap.lower().replace(' ', '_')
-        if bootstrap in ('stationary', 'sb'):
-            bootstrap = StationaryBootstrap(self.block_size, self._loss_diff)
-        elif bootstrap in ('circular', 'cbb'):
-            bootstrap = CircularBlockBootstrap(self.block_size,
-                                               self._loss_diff)
-        elif bootstrap in ('moving_block', 'mbb'):
-            bootstrap = MovingBlockBootstrap(self.block_size, self._loss_diff)
+        bootstrap = bootstrap.lower().replace(" ", "_")
+        if bootstrap in ("circular", "cbb"):
+            bootstrap_inst = CircularBlockBootstrap(self.block_size, self._loss_diff)
+        elif bootstrap in ("stationary", "sb"):
+            bootstrap_inst = StationaryBootstrap(self.block_size, self._loss_diff)
+        elif bootstrap in ("moving_block", "mbb"):
+            bootstrap_inst = MovingBlockBootstrap(self.block_size, self._loss_diff)
         else:
-            raise ValueError('Unknown bootstrap:' + bootstrap)
-        self.bootstrap = bootstrap
-        self._pvalues = None
-        self._simulated_vals = None
+            raise ValueError("Unknown bootstrap:" + bootstrap)
+        self.bootstrap = bootstrap_inst
+        self._pvalues: Dict[str, float] = {}
+        self._simulated_vals: Optional[NDArray] = None
         self._selector = np.ones(self.k, dtype=np.bool)
-        self._model = 'SPA'
+        self._model = "SPA"
         if self.studentize:
-            method = 'bootstrap' if self.nested else 'asymptotic'
+            method = "bootstrap" if self.nested else "asymptotic"
         else:
-            method = 'none'
-        self._info = OrderedDict([('studentization', method),
-                                  ('bootstrap', str(self.bootstrap)),
-                                  ('ID', hex(id(self)))])
+            method = "none"
+        self._info = dict(
+            [
+                ("studentization", method),
+                ("bootstrap", str(self.bootstrap)),
+                ("ID", hex(id(self))),
+            ]
+        )
 
-    def reset(self):
+    def reset(self) -> None:
         """
-        Reset the bootstrap to it's initial state.
+        Reset the bootstrap to its initial state.
         """
         super(SPA, self).reset()
-        self._pvalues = None
+        self._pvalues = {}
 
-    def subset(self, selector):
+    def subset(self, selector: NDArray) -> None:
         """
         Sets a list of active models to run the SPA on.  Primarily for
         internal use.
@@ -555,10 +596,13 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
         """
         self._selector = selector
 
-    def compute(self):
+    def compute(self) -> None:
         """
-        Compute the bootstrap p-value
+        Compute the bootstrap pvalue.
 
+        Notes
+        -----
+        Must be called before accessing the pvalue.
         """
         # Plan
         # 1. Compute variances
@@ -566,17 +610,18 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
             self._simulate_values()
         simulated_vals = self._simulated_vals
         # Use subset if needed
+        assert simulated_vals is not None
         simulated_vals = simulated_vals[self._selector, :, :]
         max_simulated_vals = np.max(simulated_vals, 0)
         loss_diff = self._loss_diff[:, self._selector]
 
         max_loss_diff = np.max(loss_diff.mean(axis=0))
         pvalues = (max_simulated_vals > max_loss_diff).mean(axis=0)
-        self._pvalues = OrderedDict([('lower', pvalues[0]),
-                                     ('consistent', pvalues[1]),
-                                     ('upper', pvalues[2])])
+        self._pvalues = dict(
+            [("lower", pvalues[0]), ("consistent", pvalues[1]), ("upper", pvalues[2])]
+        )
 
-    def _simulate_values(self):
+    def _simulate_values(self) -> None:
         self._compute_variance()
         # 2. Compute invalid columns using criteria for consistent
         self._valid_columns = self._check_column_validity()
@@ -597,7 +642,7 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
                 simulated_vals[:, i, j] = loss_diff_star.mean(0) - mean
         self._simulated_vals = np.array(simulated_vals)
 
-    def _compute_variance(self):
+    def _compute_variance(self) -> None:
         """
         Estimates the variance of the loss differentials
 
@@ -619,12 +664,14 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
             variances = np.sum(demeaned ** 2, 0) / t
             for i in range(1, t):
                 kappa = ((1.0 - (i / t)) * ((1 - p) ** i)) + (
-                    (i / t) * ((1 - p) ** (t - i)))
-                variances += 2 * kappa * np.sum(
-                    demeaned[:(t - i), :] * demeaned[i:, :], 0) / t
+                    (i / t) * ((1 - p) ** (t - i))
+                )
+                variances += (
+                    2 * kappa * np.sum(demeaned[: (t - i), :] * demeaned[i:, :], 0) / t
+                )
         self._loss_diff_var = variances
 
-    def _check_column_validity(self):
+    def _check_column_validity(self) -> NDArray:
         """
         Checks whether the loss from the model is too low relative to its mean
         to be asymptotically relevant.
@@ -641,7 +688,7 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
         return mean_loss_diff >= threshold
 
     @property
-    def pvalues(self):
+    def pvalues(self) -> pd.Series:
         """
         P-values corresponding to the lower, consistent and
         upper p-values.
@@ -653,10 +700,9 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
             estimator, and the upper bound.
         """
         self._check_compute()
-        return pd.Series(list(self._pvalues.values()),
-                         index=list(self._pvalues.keys()))
+        return pd.Series(list(self._pvalues.values()), index=list(self._pvalues.keys()))
 
-    def critical_values(self, pvalue=0.05):
+    def critical_values(self, pvalue: float = 0.05) -> pd.Series:
         """
         Returns data-dependent critical values
 
@@ -673,16 +719,17 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
         """
         self._check_compute()
         if not (0.0 < pvalue < 1.0):
-            raise ValueError('pvalue must be in (0,1)')
+            raise ValueError("pvalue must be in (0,1)")
         # Subset if needed
+        assert self._simulated_vals is not None
         simulated_values = self._simulated_vals[self._selector, :, :]
         max_simulated_values = np.max(simulated_values, axis=0)
-        crit_vals = np.percentile(max_simulated_values,
-                                  100.0 * (1 - pvalue),
-                                  axis=0)
+        crit_vals = np.percentile(max_simulated_values, 100.0 * (1 - pvalue), axis=0)
         return pd.Series(crit_vals, index=list(self._pvalues.keys()))
 
-    def better_models(self, pvalue=0.05, pvalue_type='consistent'):
+    def better_models(
+        self, pvalue: float = 0.05, pvalue_type: str = "consistent"
+    ) -> Union[NDArray, List[Hashable]]:
         """
         Returns set of models rejected as being equal-or-worse than the
         benchmark
@@ -708,7 +755,7 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
         """
         self._check_compute()
         if pvalue_type not in self._pvalues:
-            raise ValueError('Unknown pvalue type')
+            raise ValueError("Unknown pvalue type")
         crit_val = self.critical_values(pvalue=pvalue)[pvalue_type]
         better_models = self._loss_diff.mean(0) > crit_val
         better_models = np.logical_and(better_models, self._selector)
@@ -717,10 +764,10 @@ class SPA(MultipleComparison, metaclass=DocStringInheritor):
         else:
             return np.argwhere(better_models).flatten()
 
-    def _check_compute(self):
-        if self._pvalues is not None:
-            return None
-        msg = 'compute must be called before pvalues are available.'
+    def _check_compute(self) -> None:
+        if self._pvalues:
+            return
+        msg = "compute must be called before pvalues are available."
         raise RuntimeError(msg)
 
 

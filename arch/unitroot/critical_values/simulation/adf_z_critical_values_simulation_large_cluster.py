@@ -10,10 +10,6 @@ Remote clusters can be used by modifying the Client initiation.
 This version has been optimized for execution on a large cluster and should
 scale well with 128 or more engines.
 """
-from __future__ import absolute_import, division, print_function
-
-from arch.compat.python import lmap
-
 import datetime
 import time
 
@@ -42,7 +38,7 @@ with dview.sync_imports():
 def clear_cache(client, view):
     """Cache-clearing function from mailing list"""
     assert not rc.outstanding, "don't clear history when tasks are outstanding"
-    client.purge_results('all')  # clears controller
+    client.purge_results("all")  # clears controller
     client.results.clear()
     client.metadata.clear()
     view.results.clear()
@@ -77,17 +73,48 @@ def wrapper(n, trend, b, rng_seed=0):
 
 
 # Push variables and functions to all engines
-dview.execute('import numpy as np')
-dview['MAX_MEMORY_SIZE'] = MAX_MEMORY_SIZE
-dview['wrapper'] = wrapper
-dview['adf_simulation'] = adf_simulation
+dview.execute("import numpy as np")
+dview["MAX_MEMORY_SIZE"] = MAX_MEMORY_SIZE
+dview["wrapper"] = wrapper
+dview["adf_simulation"] = adf_simulation
 lview = rc.load_balanced_view()
 
-trends = ('nc', 'c', 'ct', 'ctt')
+trends = ("n", "c", "ct", "ctt")
 T = array(
-    (20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 120, 140, 160,
-     180, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900,
-     1000, 1200, 1400, 2000))
+    (
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50,
+        60,
+        70,
+        80,
+        90,
+        100,
+        120,
+        140,
+        160,
+        180,
+        200,
+        250,
+        300,
+        350,
+        400,
+        450,
+        500,
+        600,
+        700,
+        800,
+        900,
+        1000,
+        1200,
+        1400,
+        2000,
+    )
+)
 T = T[::-1]
 m = T.shape[0]
 percentiles = list(arange(0.5, 100.0, 0.5))
@@ -96,24 +123,25 @@ seeds = list(rng.random_integers(0, 2 ** 31 - 2, size=EX_NUM))
 
 for tr in trends:
     results = zeros((len(percentiles), m, EX_NUM)) * nan
-    filename = 'adf_z_' + tr + '.npz'
+    filename = "adf_z_" + tr + ".npz"
 
     for i, t in enumerate(T):
         print("Time series length {0} for Trend {1}".format(t, tr))
         now = datetime.datetime.now()
         # Serial version
-        # out = lmap(wrapper, [t] * EX_NUM, [tr] * EX_NUM,
-        #            [EX_SIZE] * EX_NUM, seeds)
+        # args = ([t] * EX_NUM, [tr] * EX_NUM, [EX_SIZE] * EX_NUM, seeds)
+        # out = [ wrapper(a, b, c, d) for a, b, c, d in zip(*args)]
 
         # Parallel version
-        res = lview.map_async(wrapper, [t] * EX_NUM, [tr] * EX_NUM,
-                              [EX_SIZE] * EX_NUM, seeds)
+        res = lview.map_async(
+            wrapper, [t] * EX_NUM, [tr] * EX_NUM, [EX_SIZE] * EX_NUM, seeds
+        )
         sleep_count = 0
         while not res.ready():
             sleep_count += 1
             elapsed = datetime.datetime.now() - now
             if sleep_count % 10:
-                print('Elapsed time {0}, waiting for results'.format(elapsed))
+                print("Elapsed time {0}, waiting for results".format(elapsed))
             time.sleep(SLEEP)
 
         out = res.get()
@@ -121,9 +149,8 @@ for tr in trends:
         clear_cache(rc, lview)
 
         elapsed = datetime.datetime.now() - now
-        print('Total time {0} for T={1}'.format(elapsed, t))
-        quantiles = lmap(lambda x: percentile(x, percentiles), out)
+        print("Total time {0} for T={1}".format(elapsed, t))
+        quantiles = [percentile(x, percentiles) for x in out]
         results[:, i, :] = array(quantiles).T
 
-        savez(filename, trend=tr, results=results,
-              percentiles=percentiles, T=T)
+        savez(filename, trend=tr, results=results, percentiles=percentiles, T=T)

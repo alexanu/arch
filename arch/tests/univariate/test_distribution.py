@@ -1,7 +1,3 @@
-from __future__ import division
-
-from unittest import TestCase
-
 import numpy as np
 from numpy.random import RandomState
 from numpy.testing import assert_almost_equal, assert_array_equal, assert_equal
@@ -9,8 +5,12 @@ import pytest
 from scipy.special import gamma, gammaln
 import scipy.stats as stats
 
-from arch.univariate.distribution import (GeneralizedError, Normal,
-                                          SkewStudent, StudentsT)
+from arch.univariate.distribution import (
+    GeneralizedError,
+    Normal,
+    SkewStudent,
+    StudentsT,
+)
 
 
 @pytest.fixture(params=[GeneralizedError, SkewStudent, StudentsT])
@@ -18,12 +18,12 @@ def distribution(request):
     return request.param
 
 
-class TestDistributions(TestCase):
+class TestDistributions(object):
     @classmethod
     def setup_class(cls):
         cls.rng = RandomState(12345)
         cls.T = 1000
-        cls.resids = cls.rng.randn(cls.T)
+        cls.resids = cls.rng.standard_normal(cls.T)
         cls.sigma2 = 1 + cls.rng.random_sample(cls.resids.shape)
 
     def test_normal(self):
@@ -50,8 +50,7 @@ class TestDistributions(TestCase):
         # Direct calculation of PDF, then log
         constant = np.exp(gammaln(0.5 * (v + 1)) - gammaln(0.5 * v))
         pdf = constant / np.sqrt(np.pi * (v - 2) * self.sigma2)
-        pdf *= (1 + self.resids ** 2.0 / (self.sigma2 * (v - 2))) ** (
-                -(v + 1) / 2)
+        pdf *= (1 + self.resids ** 2.0 / (self.sigma2 * (v - 2))) ** (-(v + 1) / 2)
         ll2 = np.log(pdf).sum()
         assert_almost_equal(ll1, ll2)
 
@@ -72,20 +71,31 @@ class TestDistributions(TestCase):
 
     def test_skewstudent(self):
         dist = SkewStudent()
-        eta, lam = 4.0, .5
-        ll1 = dist.loglikelihood(np.array([eta, lam]),
-                                 self.resids, self.sigma2)
+        eta, lam = 4.0, 0.5
+        ll1 = dist.loglikelihood(np.array([eta, lam]), self.resids, self.sigma2)
         # Direct calculation of PDF, then log
-        const_c = gamma((eta + 1) / 2) / ((np.pi * (eta - 2)) ** .5 * gamma(eta / 2))
+        const_c = gamma((eta + 1) / 2) / ((np.pi * (eta - 2)) ** 0.5 * gamma(eta / 2))
         const_a = 4 * lam * const_c * (eta - 2) / (eta - 1)
-        const_b = (1 + 3 * lam ** 2 - const_a ** 2) ** .5
+        const_b = (1 + 3 * lam ** 2 - const_a ** 2) ** 0.5
 
-        resids = self.resids / self.sigma2 ** .5
-        pow = (-(eta + 1) / 2)
-        pdf = (const_b * const_c / self.sigma2 ** .5 *
-               (1 + 1 / (eta - 2) *
-                ((const_b * resids + const_a) /
-                 (1 + np.sign(resids + const_a / const_b) * lam)) ** 2) ** pow)
+        resids = self.resids / self.sigma2 ** 0.5
+        power = -(eta + 1) / 2
+        pdf = (
+            const_b
+            * const_c
+            / self.sigma2 ** 0.5
+            * (
+                1
+                + 1
+                / (eta - 2)
+                * (
+                    (const_b * resids + const_a)
+                    / (1 + np.sign(resids + const_a / const_b) * lam)
+                )
+                ** 2
+            )
+            ** power
+        )
 
         ll2 = np.log(pdf).sum()
         assert_almost_equal(ll1, ll2)
@@ -100,15 +110,14 @@ class TestDistributions(TestCase):
 
         k = stats.kurtosis(self.resids, fisher=False)
         sv = max((4.0 * k - 6.0) / (k - 3.0) if k > 3.75 else 12.0, 4.0)
-        assert_array_equal(dist.starting_values(self.resids),
-                           np.array([sv, 0.]))
+        assert_array_equal(dist.starting_values(self.resids), np.array([sv, 0.0]))
 
         with pytest.raises(ValueError):
-            dist.simulate(np.array([1.5, 0.]))
+            dist.simulate(np.array([1.5, 0.0]))
         with pytest.raises(ValueError):
-            dist.simulate(np.array([4., 1.5]))
+            dist.simulate(np.array([4.0, 1.5]))
         with pytest.raises(ValueError):
-            dist.simulate(np.array([4., -1.5]))
+            dist.simulate(np.array([4.0, -1.5]))
         with pytest.raises(ValueError):
             dist.simulate(np.array([1.5, 1.5]))
 
@@ -125,7 +134,9 @@ class TestDistributions(TestCase):
         pdf *= np.exp(-(1 / 2) * np.abs(x / (c * sigma)) ** nu)
         ll2 = np.log(pdf).sum()
         assert_almost_equal(ll1, ll2)
-        lls1 = dist.loglikelihood(np.array([nu]), self.resids, self.sigma2, individual=True)
+        lls1 = dist.loglikelihood(
+            np.array([nu]), self.resids, self.sigma2, individual=True
+        )
         assert_almost_equal(lls1, np.log(pdf))
 
         assert_equal(dist.num_params, 1)
@@ -133,7 +144,7 @@ class TestDistributions(TestCase):
         bounds = dist.bounds(self.resids)
         assert_equal(len(bounds), 1)
 
-        a, b = dist.constraints()
+        a, _ = dist.constraints()
         assert_equal(a.shape, (2, 1))
 
         assert_array_equal(dist.starting_values(self.resids), np.array([1.5]))
@@ -144,20 +155,25 @@ class TestDistributions(TestCase):
         rvs = simulator(1000)
         assert rvs.shape[0] == 1000
         assert str(hex(id(dist))) in dist.__repr__()
-        assert dist.parameter_names() == ['nu']
+        assert dist.parameter_names() == ["nu"]
 
 
 def test_bad_input():
     with pytest.raises(TypeError):
-        Normal(random_state='random_state')
+        Normal(random_state="random_state")
 
 
-DISTRIBUTIONS = [(Normal, ()), (StudentsT, (8.0,)), (StudentsT, (3.0,)),
-                 (GeneralizedError, (1.5,)), (GeneralizedError, (2.1,)),
-                 (SkewStudent, (8.0, -0.5))]
+DISTRIBUTIONS = [
+    (Normal, ()),
+    (StudentsT, (8.0,)),
+    (StudentsT, (3.0,)),
+    (GeneralizedError, (1.5,)),
+    (GeneralizedError, (2.1,)),
+    (SkewStudent, (8.0, -0.5)),
+]
 
 
-@pytest.mark.parametrize('distribution', DISTRIBUTIONS)
+@pytest.mark.parametrize("distribution", DISTRIBUTIONS)
 def test_roundtrip_cdf_ppf(distribution):
     pits = np.arange(1, 100.0) / 100.0
     dist, param = distribution

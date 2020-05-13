@@ -1,22 +1,22 @@
-from __future__ import absolute_import, division
-
 import functools
+from typing import Any, Callable
 
 
 class PerformanceWarning(UserWarning):
-    pass
+    """Warning issued if recursions are run in CPython"""
 
 
-performance_warning = '''
+performance_warning = """
 numba is not available, and this function is being executed without JIT
 compilation. Either install numba or reinstalling after installing Cython
-is strongly recommended.'''
+is strongly recommended."""
 
 try:
     from numba import jit
 
     try:
-        def f(x, y):
+
+        def f(x: float, y: float) -> float:
             return x + y
 
         fjit = jit(f, nopython=True, fastmath=True)
@@ -25,12 +25,15 @@ try:
     except KeyError:
         jit = functools.partial(jit, nopython=True)
 except ImportError:
-    def jit(func, *args, **kwargs):
-        def wrapper(*args, **kwargs):
+
+    def jit(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Callable[..., Any]:
             import warnings
+
             warnings.warn(performance_warning, PerformanceWarning)
             return func(*args, **kwargs)
 
         return wrapper
 
-__all__ = ['jit', 'PerformanceWarning']
+
+__all__ = ["jit", "PerformanceWarning"]

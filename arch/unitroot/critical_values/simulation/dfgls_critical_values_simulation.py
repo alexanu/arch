@@ -3,8 +3,6 @@ Critical value simulation for the Dickey-Fuller GLS model.  Similar in design
 to MacKinnon (2010).  Makes use of parallel_fun in statsmodels which works
 best when joblib is installed.
 """
-from __future__ import absolute_import, division, print_function
-
 import datetime
 
 import numpy as np
@@ -53,7 +51,7 @@ def dfgsl_simulation(n, trend, b, rng=None):
     standard_normal = rng.standard_normal
 
     nobs = n
-    if trend == 'c':
+    if trend == "c":
         c = -7.0
         z = np.ones((nobs, 1))
     else:
@@ -88,12 +86,43 @@ def dfgsl_simulation(n, trend, b, rng=None):
     return stat
 
 
-if __name__ == '__main__':
-    trends = ('c', 'ct')
+if __name__ == "__main__":
+    trends = ("c", "ct")
     T = np.array(
-        (20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 120, 140, 160,
-         180, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900,
-         1000, 1200, 1400, 2000))
+        (
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            60,
+            70,
+            80,
+            90,
+            100,
+            120,
+            140,
+            160,
+            180,
+            200,
+            250,
+            300,
+            350,
+            400,
+            450,
+            500,
+            600,
+            700,
+            800,
+            900,
+            1000,
+            1200,
+            1400,
+            2000,
+        )
+    )
     T = T[::-1]
     percentiles = list(np.arange(0.5, 100.0, 0.5))
     seeds = np.arange(0, 2 ** 32, step=2 ** 23)
@@ -101,27 +130,31 @@ if __name__ == '__main__':
         results = np.zeros((len(percentiles), len(T), EX_NUM))
 
         for i in range(EX_NUM):
-            print("Experiment Number {0} of {1} "
-                  "(trend {2})".format(i + 1, EX_NUM, tr))
+            print(
+                "Experiment Number {0} of {1} " "(trend {2})".format(i + 1, EX_NUM, tr)
+            )
             now = datetime.datetime.now()
-            parallel, p_func, n_jobs = parallel_func(wrapper,
-                                                     n_jobs=NUM_JOBS,
-                                                     verbose=2)
+            parallel, p_func, n_jobs = parallel_func(
+                wrapper, n_jobs=NUM_JOBS, verbose=2
+            )
             out = parallel(p_func(t, tr, EX_SIZE, seed=seeds[i]) for t in T)
             quantiles = map(lambda x: np.percentile(x, percentiles), out)
             results[:, :, i] = np.array(quantiles).T
-            print('Elapsed time {0} seconds'.format(
-                datetime.datetime.now() - now))
+            print("Elapsed time {0} seconds".format(datetime.datetime.now() - now))
 
             if i % 50 == 0:
-                np.savez('dfgls_' + tr + '.npz',
-                         trend=tr,
-                         results=results,
-                         percentiles=percentiles,
-                         T=T)
+                np.savez(
+                    "dfgls_" + tr + ".npz",
+                    trend=tr,
+                    results=results,
+                    percentiles=percentiles,
+                    T=T,
+                )
 
-        np.savez('dfgls_' + tr + '.npz',
-                 trend=tr,
-                 results=results,
-                 percentiles=percentiles,
-                 T=T)
+        np.savez(
+            "dfgls_" + tr + ".npz",
+            trend=tr,
+            results=results,
+            percentiles=percentiles,
+            T=T,
+        )
